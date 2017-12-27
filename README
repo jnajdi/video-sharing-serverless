@@ -1,6 +1,6 @@
 This project is based on ACloud Guru workshop: https://github.com/ACloudGuru/serverless-workshop
 
-It serverless application for sharing videos. All event driven and serverless (Hosted in AWS  and Google Drive) 
+It's serverless application for sharing videos. All event driven and serverless (Hosted in AWS  and Google Drive) 
 
 Sign up & Login - File upload and storage - Video transcoding - In-browser playback for the public. 
 
