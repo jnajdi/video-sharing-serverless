@@ -1,0 +1,8 @@
+var configConstants = {
+    auth0: {
+        domain: 'jnajdi.auth0.com',
+        clientId: ''
+    },
+    // API Gateway Invoke URL: API GATEWAY>video_sharing>Stages>Dev
+    apiBaseUrl: 'https://hfqy5hxv44.execute-api.us-east-1.amazonaws.com/dev'
+};
