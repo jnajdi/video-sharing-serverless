@@ -1,5 +1,157 @@
 README
 
-1. Run "npm install" to install dependencies
-2. Run "npm start" to start the web-server
-3. Open http://127.0.0.1:8100 to see the website in your browser
+ACloud Guru: https://github.com/ACloudGuru/serverless-workshop
+
+Build a server-less application for sharing videos…All event driven and serverless (Hosted in AWS  and Google Drive) 
+
+Sign up & Login - File upload and storage - Video transcoding - In-browser playback for the public. 
+
+Install Nodejs : 8.9.1 LTS
+
+#Create a serverless transcoding pipelines in AWS 
+    For this step, we'll just upload the file directly to S3 bucket and work on the Lambda service to transcode the video. 
+
+1. Create two S3 buckets. One for upload and one for transcoding: jn-video-sharing-upload ; jn-video-sharing-transcode 
+2. Change Buckets permissions. Permissions>Bucket Policy> get policy Lab 1 (bucket-policy.txt)
+3. Elastic Transcoder Service: create pipelines and jobs to move file though this pipelines. 
+4. Create Lambda Role: 
+    1. Select Lambda as the trusted entity…Attach policies:
+    2. AWSLambdaExecute: Allow to execute Lambda functions.
+    3. AmazonElasticTranscoderJobsSubmitter: Allow to submit jobs to Elastic Transcoder 
+5. Create Lambda Function
+    1. Video-sharing-transcode-function 
+    2. Configuration: Basic settings: change timeout: 30s
+    3. Write lambda code manually: 
+        1. /video-sharing-serverless/lambda/video-transcoder
+        2. npm install (package.json: install dependencies: aws-sdk@2.171.0, run-local-lambda@)
+        3. npm run predeploy (to create zip file: Lambda-Deployment.zip)
+        4. Under Function Code: upload zip file
+        5. Add environment variables: Injected by lambda when function is executed.
+            1. ELASTIC_TRANSCODER_REGION: US-EAST-1
+            2. ELASTIC_TRANSCODER_PIPELINE_ID: pipelineID
+        6. Add Triggers: 
+            1. Select S3 -
+            2. Configure Triggers: Bucket (Event Source): jn-video-sharing-upload; Event Type: Object Created (All)
+    4. S3: Upload a file to jn-video-sharing-upload 
+    5. Confirm that the new file were created in jn-video-sharing-transcoder
+
+# Website and user authentication
+1.     Use Auth0 service for authentication. 
+2.     Integration Auth0 with website 
+3. 
+4. Create Auth0 account. jnajdi.auth0.com
+5. Select Clients> Default App > Connections> Enable Username-Password-Authentication only. 
+6. Settings> Allowed Origins (CORS)> http://localhost:8100
+7. Show Advance Settings> Oauth>JsonWebTokenSignature> HS256
+8. Settings> Domain - Client ID - Client Secret. 
+9. Update website/js/config.js … Auth0 vales: Domain - Client ID
+10. Review main.js
+11. Run npm install - to install local webserver: local-web-server
+12. npm start (to start local webserver)
+
+# API in AWS with authenticated calls
+    Getting user profile from Auth0
+    Create two Lambda functions: 1. Get user profile from Auth0 - 2. Authorize user to get the profile. 
+    A function should do only one thing
+   Use API Gateway: Configure it to expose API endpoint over HTTP. Call Lambda function everything the endpoint is called. 
+
+1. Get User Profile Lambda: 
+    1. /lambda/user-profile$ index.js
+    2. npm install
+    3. npm run predeploy (generate zip file to upload to AWS)
+    4. Create video-sharing-get-user-profile Lambda function (Set node.js version 4.3) - (Role: lambda-s3-execution-role) - Upload zip file. - Set ENV. AUTH0_DOMAIN: jnajdi.auth0.com
+2. Set up API Gateway to access request from our website. 
+    1. Create new API (video-sharing)
+    2. Create Resources > Actions> Create Resource: Resource Name: user-profile . Enable CORS: Allows all origins and method to call the API. 
+    3. Create Method > Options GET - Integration Type> Lambda Function - Enable Lambda Proxy integration> us-east-1 (Region) - video-sharing-get-user-profile (Function)
+    4. Deploy API > Actions: STAGE: NEW STAGE: DEV : COPY INVOKE URL
+3. Create API Authorizer
+    1. Create Lambda Function
+        1. Create Role (IAM): For Lambda> Attach Policy: AWSLambdaBasicExecutionRole
+        2. /lambda/custom-authorizer$index.js
+        3.  npm install
+        4. npm run predeploy (generate zip file to upload to AWS)
+        5. Create video-sharing-custom-authorizer Lambda function (Set node.js version 4.3) - (Role:AWSLambdaBasicExecutionRole - Upload zip file. set ENV AUTH0_SECRET: 
+    2. Configure API Gateway to run video-sharing-custom-authorizer lambda function before video-sharing-get-user-profile
+        1. API Gateway> video-sharing>Authorizers> Create New Authorizer> custom-authorizer > Lambda Function: video-sharing-custom-authorizer > Token Source: authorization (name of the token in header - index.js - function: configurationAuthenticatedRequests)
+        2. Resources: GET > Method Request > Settings > Authorization > Token Authorizer: custom-authorizer (refresh if missing) > HTTP Request Headers: authorization
+        3. Deploy API> Actions - Stage Dev
+
+# Enable browser based uploads of video files to S3
+
+1. Create Lambda function: Returns policy needed for the client to upload a file to S3
+2. Policy that get created needs to be signed by an IAM user
+    1. Create User: IAM > Users> Add User: video-sharing-upload-s3> Username: upload-s3 > Programatic access
+    2. Download Access Key ID + Secret Access Key
+    3. Click on user> Permissions> Add inline policy > Create a custom policy> Set Name: upload-policy - Policy Document: copy from iam-policy.txt > Change Bucket name: jn-video-sharing-upload
+3. Create Lambda function: video-sharing-get-upload-policy
+    1. lambda/upload-policy (create zip file and upload to AWS)
+    2. Env: SECRET_ACCESS_KEY (IAM USER) - ACCESS_KEY_ID - UPLOAD_URI: HTTPS://S3.AMAZONAWS.COM - UPLOAD BUCKET: jn-video-sharing-upload
+4. Api Gateway:
+    1.  Create s3-policy-document resource> create method: Get - Type: Lambda Function - video-sharing-upload-policy 
+    2. Attach Authorizer: Update GET Method Execution: Settings > Authorization: custom-authorizer - Http Request Headers: add header: authorization 
+    3. Deploy API: copy Invoke URL
+    4. S3: Enable CORS on the bucket to Allow upload to bucket Bucket> Permission>CORS Configuration>copy content of upload-policy$cors.txt
+
+# Connect a database to list videos (Firebase)
+
+1. Create Firebase account > DEVLOP >Database> Realtime Database> Get Started
+    1. Rules: Update rules:  ".read": “true"
+    2. Data: Copy database url: https://video-sharing-4b345.firebaseio.com/
+    3. Project Overview: Add Firebase to you web app: Copy javascript. 
+    4. Update js/video-controller > connectToFirebase> Paste config value. 
+2. Load Sample data in Firebase DB
+    1. Database > Import Json (:) 
+    2. Reload app
+3. Create Firebase Service Account to allow transcoder lambda function to update Firebase Date (Push Based real time)
+    1. FIrebase>Project Overview > Service Account > Manage all service accounts > Create Service Account 
+    2. Service account name: video-sharing-account - Role> Project> Editor
+    3. Furnish a new private key - Key Type: JSON 
+    4. Add Json file to Lambda source: transcode-video-firebase-enabled/video-sharing-firebase-perm.json: This is a credentials file that will be used by lambda to access firebase DB.
+4. Update Lambda function: video-sharing-transcode-function
+    1. transcode-video-firebase-enabled > npm install && nom run predeploy
+    2. Update zip file 
+    3. Add ENV: SERVICE_ACCOUNT (firebase service account filename: video-sharing-firebase-perm.json) - DATABASE_URL
+5. Create new Lambda function: This will trigger when a newly transcoded file arrives to the transcoded bucket. It’ll update Firebase with the public url and set the transcoding field to false.
+    1. Copy Firebase service account credentials file to lambda source code: 
+        1. lambda/push-transcoded-url-to-firebase$ cp ../transcode-video-firebase-enabled/video-sharing-7c5d6becce3c.json .
+    2. Generate Zip file (nom)
+    3. Create Lambda function: video-sharing-push-transcoded-url-to-firebase - Role: lambda-s3-execution-role
+    4. Add ENV: SERVICE_ACCOUNT (firebase service account filename: video-sharing-7c5d6becce3c.json) - DATABASE_URL - S3: https://s3.amazonaws.com/jn-video-sharing-transcode - BUCKET_REGION: us-east-1
+    5. Add Triggers: 
+        1. Select S3 -
+        2. Configure Triggers: Bucket (Event Source): jn-video-sharing-transcde; Event Type: Object Created (All)
+
+# Deploy Website to S3: 
+1.     Create S3 Bucket - In properties, choose Static Website Hosting - Copy Endpoitn:
+    1.  http://video-sharing-website.s3-website-us-east-1.amazonaws.com
+    2. 
+2. Add Bucket policy to make its content publicly available:
+{
+
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadForGetBucketObjects",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::video-sharing-website/*",
+      "Principal": "*"
+    }
+      ]
+    }
+3. Upload content of website directory to Bucket
+4. http://video-sharing-website.s3-website-us-east-1.amazonaws.com
+5. Update Auth0 setting to allow calls from new url 
+6. Update CORS Policy: 
+<CORSConfiguration>
+    <CORSRule>
+        <AllowedOrigin>*</AllowedOrigin>
+        <AllowedMethod>GET</AllowedMethod>
+        <MaxAgeSeconds>3000</MaxAgeSeconds>
+        <AllowedHeader>*</AllowedHeader>
+    </CORSRule>
+</CORSConfiguration>
+
