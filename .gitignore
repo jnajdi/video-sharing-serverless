@@ -6,3 +6,7 @@ node_modules
 user.csv
 .DS_Store
 .idea/
+
+dist
+event.json
+Gruntfile.js
